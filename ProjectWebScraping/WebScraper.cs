@@ -1,22 +1,22 @@
 ﻿using HtmlAgilityPack;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using ProjectWebScraping.Models;
+using System.Diagnostics;
 
 namespace ProjectWebScraping
 {
   public class WebScraper
   {
     private readonly string _baseUrl = "https://books.toscrape.com/";
+    private readonly HtmlWeb _htmlWeb = new HtmlWeb();
 
     public void Scrape()
     {
-      var web = new HtmlWeb();
-      HtmlDocument doc = web.Load(_baseUrl);
+      Stopwatch sw = Stopwatch.StartNew();
+      HtmlDocument doc = _htmlWeb.Load(_baseUrl);
 
-      HtmlNode sidePanel = doc.DocumentNode.Descendants("div").Where(x => x.HasClass("side_categories")).First();
+      HtmlNode sidePanel = doc.DocumentNode.Descendants("div")
+        .Where(x => x.HasClass("side_categories"))
+        .First();
 
       if(sidePanel == null)
       {
@@ -32,11 +32,77 @@ namespace ProjectWebScraping
         .Select(li => li.SelectSingleNode("a"))
         .ToList();
         
-      foreach(var category in categories)
+      foreach(HtmlNode category in categories)
       {
-        var link = category.GetAttributeValue("href", string.Empty);
-        Console.WriteLine(string.Format("{0}{1}", _baseUrl, link));
+        string link = category.GetAttributeValue("href", string.Empty);
+        string fullLink = string.Format("{0}{1}", _baseUrl, link);
+        HandleThing(fullLink);
       }
+
+      sw.Stop();
+      Console.WriteLine(sw.Elapsed.ToString());
+    }
+
+    public Task HandleThing(string categoryLink)
+    {
+      HtmlNode categoryPage = _htmlWeb.Load(categoryLink).DocumentNode;
+      List<HtmlNode> books = new List<HtmlNode>();
+      var categoryDiv = categoryPage.Descendants("section")
+        .First()
+        .Descendants("div")
+        .Where(div => !div.HasClass("alert"))
+        .First();
+
+      books.AddRange(categoryDiv
+        .Descendants("ol")
+        .First()
+        .Descendants("li")
+        .ToList());
+
+      var pager1 = categoryDiv.Descendants("ul").Where(ul => ul.HasClass("pager"));
+
+
+      var pager = categoryDiv.Descendants("ul")
+        .Where(ul => ul.HasClass("pager")).Count() > 0;
+
+      if(pager)
+      {
+        HtmlNode categoryPage2 = _htmlWeb.Load(categoryLink.Replace("index.html", "page-2.html")).DocumentNode;
+
+        books.AddRange(categoryPage2.Descendants("section")
+          .First()
+          .Descendants("div")
+          .Where(div => !div.HasClass("alert"))
+          .First()
+          .Descendants("ol")
+          .First()
+          .Descendants("li")
+          .ToList());
+      }
+
+      Console.WriteLine(books.Count);
+
+      foreach (HtmlNode book in books)
+      {
+        HandleBook(book);
+      }
+
+      return null;
+    }
+
+    public Task HandleBook(HtmlNode bookNode)
+    {
+      HtmlNode aNode = bookNode.Descendants("article").First()
+        .Descendants("h3").First()
+        .Descendants("a").First();
+
+      var link = aNode.GetAttributeValue("href", string.Empty).Replace("../", "");
+      link = string.Format("{0}{1}{2}", _baseUrl, "catalogue/", link);
+
+      HtmlNode bookPage = _htmlWeb.Load(link).DocumentNode;
+      var book = new ScrapedBook();
+
+      return null;
     }
   }
 }
