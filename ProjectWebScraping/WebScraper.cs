@@ -1,6 +1,8 @@
 ﻿using HtmlAgilityPack;
+using Newtonsoft.Json;
 using ProjectWebScraping.Models;
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -12,6 +14,8 @@ namespace ProjectWebScraping
     private readonly HtmlWeb _htmlWeb = new HtmlWeb();
     private readonly string _numberAndDotMatch = "[0-9.]+";
     private readonly string _numberMatch = "[0-9]+";
+    private readonly string _path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "/WebScraping";
+    private readonly HttpClient _httpClient = new HttpClient();
 
     public async Task Scrape()
     {
@@ -36,7 +40,7 @@ namespace ProjectWebScraping
       {
         string link = category.GetAttributeValue("href", string.Empty);
         string fullLink = string.Format("{0}{1}", _baseUrl, link);
-        string categoryName = category.InnerText.Trim();
+        string categoryName = category.InnerText.Trim().DecodeAndSanitize();
         categoryTasks.Add(HandleCategory(fullLink, categoryName));
       }
 
@@ -47,7 +51,7 @@ namespace ProjectWebScraping
     {
       Console.WriteLine(categoryName + " scraping started...");
       HtmlNode categoryPage = (await _htmlWeb.LoadFromWebAsync(categoryLink)).DocumentNode;
-      
+      Directory.CreateDirectory(string.Format("{0}/{1}", _path, categoryName));
 
       List<HtmlNode> books = new List<HtmlNode>();
       List<Task> bookTasks = new List<Task>();
@@ -77,11 +81,12 @@ namespace ProjectWebScraping
           .Where(li => li.HasClass("next"))
           .FirstOrDefault();
 
-        if(liNode == null)
+        if (liNode == null)
         {
           pagesExist = false;
         }
-        else {
+        else
+        {
           string pageLink = liNode.Descendants("a")
             .First()
             .GetAttributeValue("href", string.Empty);
@@ -133,7 +138,7 @@ namespace ProjectWebScraping
         .Where(p => p.HasClass("price_color"))
         .First().InnerText, _numberAndDotMatch).Value;
 
-      book.Title = firstRow.Descendants("h1").First().InnerText;
+      book.Title = firstRow.Descendants("h1").First().InnerText.DecodeAndSanitize();
       book.StarRating = GetNumberOfStars(string.Join(" ", firstRow.Descendants("p")
         .Where(p => p.HasClass("star-rating"))
         .First()
@@ -141,19 +146,29 @@ namespace ProjectWebScraping
       var descriptionNode = bookPage.Descendants("div")
         .Where(div => div.Id == "product_description")
         .FirstOrDefault();
-      book.Description = descriptionNode != null ? descriptionNode.NextSibling.NextSibling.InnerText : string.Empty;
+      book.Description = descriptionNode != null ? descriptionNode.NextSibling.NextSibling.InnerText.DecodeAndSanitize() : string.Empty;
 
       var table = bookPage.Descendants("table").First();
       var tableRows = table.Descendants("tr");
 
-      book.UPC = tableRows.ElementAt(0).Descendants("td").First().InnerText;
-      book.ProductType = tableRows.ElementAt(1).Descendants("td").First().InnerText;
+      book.UPC = tableRows.ElementAt(0).Descendants("td").First().InnerText.DecodeAndSanitize();
+      book.ProductType = tableRows.ElementAt(1).Descendants("td").First().InnerText.DecodeAndSanitize();
       book.PriceWithoutTax = decimal.Parse(Regex.Match(tableRows.ElementAt(2).Descendants("td").First().InnerText, _numberAndDotMatch).Value);
       book.Price = decimal.Parse(Regex.Match(tableRows.ElementAt(3).Descendants("td").First().InnerText, _numberAndDotMatch).Value);
       book.Tax = decimal.Parse(Regex.Match(tableRows.ElementAt(4).Descendants("td").First().InnerText, _numberAndDotMatch).Value);
       book.AvailableInStock = int.Parse(Regex.Match(tableRows.ElementAt(5).Descendants("td").First().InnerText, _numberMatch).Value);
       book.NumberOfReviews = int.Parse(tableRows.ElementAt(6).Descendants("td").First().InnerText);
       book.Category = categoryName;
+      string serializedJson = JsonConvert.SerializeObject(book);
+      string title = book.Title.EndsWith("...") ? book.Title.Replace("...", "") : book.Title;
+
+      var dirPath = string.Format("{0}/{1}/{2}", _path, categoryName, title);
+      Directory.CreateDirectory(dirPath);
+
+      HttpResponseMessage response = await _httpClient.GetAsync(imgLink);
+      byte[] byteImg = await response.Content.ReadAsByteArrayAsync();
+      await File.WriteAllBytesAsync(string.Format("{0}/{1}", dirPath, title + ".jpg"), byteImg);
+      await File.WriteAllTextAsync(string.Format("{0}/{1}", dirPath, title + ".json"), serializedJson);
     }
 
     public int GetNumberOfStars(string ratingString)
