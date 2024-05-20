@@ -15,10 +15,10 @@ namespace ProjectWebScraping.Models
     public decimal PriceWithoutTax { get; set; }
     public decimal Tax { get; set; }
     public int StarRating { get; set; }
-    public decimal AvailableInStock { get; set; }
+    public int AvailableInStock { get; set; }
     public string UPC {  get; set; } = string.Empty;
     public string ProductType { get; set; } = string.Empty;
-    public string NumberOfReviews { get; set; } = string.Empty;
+    public int NumberOfReviews { get; set; }
     public string Category {  get; set; } = string.Empty;
   }
 }
