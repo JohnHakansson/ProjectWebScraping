@@ -13,10 +13,10 @@ namespace ProjectWebScraping
     private readonly string _numberAndDotMatch = "[0-9.]+";
     private readonly string _numberMatch = "[0-9]+";
 
-    public void Scrape()
+    public async Task Scrape()
     {
-      HtmlDocument doc = _htmlWeb.Load(_baseUrl);
-      
+      HtmlDocument doc = await _htmlWeb.LoadFromWebAsync(_baseUrl);
+      var categoryTasks = new List<Task>();
       HtmlNode sidePanel = doc.DocumentNode.Descendants("div")
         .Where(x => x.HasClass("side_categories"))
         .First();
@@ -30,19 +30,27 @@ namespace ProjectWebScraping
         .Select(li => li.SelectSingleNode("a"))
         .ToList();
 
+
+
       foreach (HtmlNode category in categories)
       {
         string link = category.GetAttributeValue("href", string.Empty);
         string fullLink = string.Format("{0}{1}", _baseUrl, link);
         string categoryName = category.InnerText.Trim();
-        HandleCategory(fullLink, categoryName);
+        categoryTasks.Add(HandleCategory(fullLink, categoryName));
       }
+
+      await Task.WhenAll(categoryTasks);
     }
 
-    public Task HandleCategory(string categoryLink, string categoryName)
+    public async Task HandleCategory(string categoryLink, string categoryName)
     {
-      HtmlNode categoryPage = _htmlWeb.Load(categoryLink).DocumentNode;
+      Console.WriteLine(categoryName + " scraping started...");
+      HtmlNode categoryPage = (await _htmlWeb.LoadFromWebAsync(categoryLink)).DocumentNode;
+      
+
       List<HtmlNode> books = new List<HtmlNode>();
+      List<Task> bookTasks = new List<Task>();
       bool pagesExist = false;
 
       var categoryDiv = categoryPage.Descendants("section")
@@ -91,17 +99,17 @@ namespace ProjectWebScraping
         }
       }
 
-      Console.WriteLine(books.Count);
-
       foreach (HtmlNode book in books)
       {
-        HandleBook(book, categoryName);
+        bookTasks.Add(HandleBook(book, categoryName));
       }
 
-      return null;
+      Console.WriteLine(categoryName + " scraping complete, " + books.Count + " books found.");
+
+      await Task.WhenAll(bookTasks);
     }
 
-    public Task HandleBook(HtmlNode bookNode, string categoryName)
+    public async Task HandleBook(HtmlNode bookNode, string categoryName)
     {
       HtmlNode aNode = bookNode.Descendants("article").First()
         .Descendants("h3").First()
@@ -110,7 +118,7 @@ namespace ProjectWebScraping
       var link = aNode.GetAttributeValue("href", string.Empty).Replace("../", "");
       link = string.Format("{0}{1}{2}", _baseUrl, "catalogue/", link);
 
-      HtmlNode bookPage = _htmlWeb.Load(link).DocumentNode
+      HtmlNode bookPage = (await _htmlWeb.LoadFromWebAsync(link)).DocumentNode
         .Descendants("article")
         .First();
 
@@ -146,8 +154,6 @@ namespace ProjectWebScraping
       book.AvailableInStock = int.Parse(Regex.Match(tableRows.ElementAt(5).Descendants("td").First().InnerText, _numberMatch).Value);
       book.NumberOfReviews = int.Parse(tableRows.ElementAt(6).Descendants("td").First().InnerText);
       book.Category = categoryName;
-
-      return null;
     }
 
     public int GetNumberOfStars(string ratingString)
