@@ -167,8 +167,9 @@ namespace ProjectWebScraping
 
       HttpResponseMessage response = await _httpClient.GetAsync(imgLink);
       byte[] byteImg = await response.Content.ReadAsByteArrayAsync();
-      await File.WriteAllBytesAsync(string.Format("{0}/{1}", dirPath, title + ".jpg"), byteImg);
-      await File.WriteAllTextAsync(string.Format("{0}/{1}", dirPath, title + ".json"), serializedJson);
+      File.WriteAllBytes(string.Format("{0}/{1}", dirPath, title + ".jpg"), byteImg);
+
+      File.WriteAllText(string.Format("{0}/{1}", dirPath, title + ".json"), serializedJson);
     }
 
     public int GetNumberOfStars(string ratingString)
