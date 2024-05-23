@@ -1,6 +1,6 @@
 # ProjectWebScraping
 
-This is program for scraping data from the site https://books.toscrape.com/.
+This is program for scraping data from the site https://books.toscrape.com/ and save them locally on your computer.
 Since I'm new to web scraping i decided to use HtmlAgilityPack for DOM traversing. I used 'async' and 'await' so that the getting of the pages to scrape and the scraping can happen simultaneously and speed up the appilcation.
 The methods can be considered a bit bloated but i still wanted to keep them as such, because I think it's easier to follow, especially the 'HandleBook'-method. 
 
